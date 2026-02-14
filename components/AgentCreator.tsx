@@ -1,18 +1,21 @@
 
 import React, { useState, useMemo } from 'react';
-import { BASE_AI_LIST } from '../constants';
-import { Agent } from '../types';
+import { BASE_AI_LIST, UNDERGROUND_AGENTS } from '../constants';
+import { Agent, AgentId } from '../types';
 import { synthesizeHybrid, createCustomAgent } from '../services/geminiService';
 
 interface AgentCreatorProps {
   onCreated: (agent: Agent) => void;
   onClose: () => void;
+  onOpenTorrents?: () => void;
 }
 
-const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'fusion' | 'custom'>('fusion');
+const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose, onOpenTorrents }) => {
+  const [activeTab, setActiveTab] = useState<'fusion' | 'custom' | 'underground'>('fusion');
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectedUnderground, setSelectedUnderground] = useState<AgentId[]>([]);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [undergroundPrompt, setUndergroundPrompt] = useState('');
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [showValidationWarning, setShowValidationWarning] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,6 +35,15 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
     }
   };
 
+  const toggleUndergroundSelect = (id: AgentId) => {
+    setShowValidationWarning(false);
+    if (selectedUnderground.includes(id)) {
+      setSelectedUnderground(selectedUnderground.filter(sid => sid !== id));
+    } else {
+      setSelectedUnderground([...selectedUnderground, id]);
+    }
+  };
+
   const handleSynthesize = async () => {
     if (activeTab === 'fusion') {
       if (selected.length < 1) {
@@ -48,7 +60,7 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
       } finally {
         setIsSynthesizing(false);
       }
-    } else {
+    } else if (activeTab === 'custom') {
       if (!customPrompt.trim()) {
         setShowValidationWarning(true);
         return;
@@ -60,6 +72,33 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
       } catch (error) {
         console.error(error);
         alert("Neural mapping failed. Prompt rejected by core.");
+      } finally {
+        setIsSynthesizing(false);
+      }
+    } else if (activeTab === 'underground') {
+      if (selectedUnderground.length < 1) {
+        setShowValidationWarning(true);
+        return;
+      }
+      setIsSynthesizing(true);
+      try {
+        for (const agentId of selectedUnderground) {
+          const baseAgent = UNDERGROUND_AGENTS.find(a => a.id === agentId);
+          if (baseAgent) {
+            const finalAgent = {
+              ...baseAgent,
+              id: `${baseAgent.id}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              personality: undergroundPrompt.trim() 
+                ? `${baseAgent.personality} [INITIALIZATION DIRECTIVE]: ${undergroundPrompt}`
+                : baseAgent.personality
+            };
+            onCreated(finalAgent);
+          }
+        }
+        onClose();
+      } catch (error) {
+        console.error(error);
+        alert("Underground link failed.");
       } finally {
         setIsSynthesizing(false);
       }
@@ -96,20 +135,27 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
           </div>
 
           <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
-            <div className="flex gap-4 p-1.5 bg-black/60 rounded-2xl border border-white/5 w-fit">
+            <div className="flex flex-wrap gap-4 p-1.5 bg-black/60 rounded-2xl border border-white/5 w-fit">
               <button 
                 onClick={() => setActiveTab('fusion')}
-                className={`flex items-center gap-3 px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeTab === 'fusion' ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`flex items-center gap-3 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeTab === 'fusion' ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
                 <i className="fa-solid fa-flask-vial"></i>
                 Fusion Chamber
               </button>
               <button 
                 onClick={() => setActiveTab('custom')}
-                className={`flex items-center gap-3 px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeTab === 'custom' ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`flex items-center gap-3 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeTab === 'custom' ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
                 <i className="fa-solid fa-dna"></i>
                 Direct Mapping
+              </button>
+              <button 
+                onClick={() => setActiveTab('underground')}
+                className={`flex items-center gap-3 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeTab === 'underground' ? 'bg-green-600 text-white shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                <i className="fa-solid fa-eye-slash"></i>
+                Underground AI
               </button>
             </div>
 
@@ -133,7 +179,84 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
           
           {/* Main Selection Area */}
           <div className="flex-grow overflow-y-auto p-8 custom-scrollbar bg-zinc-950/20">
-            {activeTab === 'fusion' ? (
+            {activeTab === 'underground' ? (
+              <div className="max-w-4xl mx-auto space-y-8 pb-12">
+                <div className="bg-green-500/5 border border-green-500/20 rounded-3xl p-8 mb-10 flex items-center justify-between gap-6">
+                   <div className="flex items-center gap-6">
+                      <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center text-green-500">
+                          <i className="fa-solid fa-user-ninja text-3xl"></i>
+                      </div>
+                      <div className="flex-grow">
+                          <h3 className="text-xl font-black uppercase italic tracking-widest text-white">Underground Framework Gateway</h3>
+                          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.4em] mt-1">Accessing non-standard cognitive architectures.</p>
+                      </div>
+                   </div>
+                   {onOpenTorrents && (
+                     <button 
+                        onClick={onOpenTorrents}
+                        className="px-6 py-3 rounded-xl bg-red-600/10 border border-red-500/30 text-red-500 text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center gap-3"
+                     >
+                        <i className="fa-solid fa-magnet"></i>
+                        Torrent Hub
+                     </button>
+                   )}
+                </div>
+
+                {/* Specialized Input for Underground Tab */}
+                <div className="mb-10 p-6 bg-black/40 border border-green-500/10 rounded-[2rem] relative overflow-hidden group">
+                   <div className="flex items-center gap-3 mb-4">
+                      <i className="fa-solid fa-terminal text-green-500 text-xs"></i>
+                      <span className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500">INITIALIZATION DIRECTIVE</span>
+                   </div>
+                   <textarea
+                      value={undergroundPrompt}
+                      onChange={(e) => setUndergroundPrompt(e.target.value)}
+                      placeholder="Input initialization parameters for the selected frameworks... (e.g. 'Audit the SOL/USDC pool on Raydium...')"
+                      className="w-full h-32 bg-transparent text-zinc-200 focus:outline-none transition-all resize-none placeholder:text-zinc-800 font-mono text-sm leading-relaxed"
+                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {UNDERGROUND_AGENTS.map(agent => {
+                    const isSelected = selectedUnderground.includes(agent.id);
+                    return (
+                      <button
+                        key={agent.id}
+                        onClick={() => toggleUndergroundSelect(agent.id)}
+                        className={`flex flex-col p-8 rounded-[2.5rem] border transition-all text-left group relative overflow-hidden h-full ${isSelected ? 'bg-green-950/20 border-green-500 shadow-[0_0_40px_rgba(34,197,94,0.2)]' : 'bg-black/60 border-green-500/10 hover:border-green-500/30'}`}
+                      >
+                        <div className="flex items-center gap-5 mb-6">
+                           <div className={`w-14 h-14 rounded-2xl ${agent.color} border border-white/20 flex items-center justify-center text-white shadow-xl transition-transform ${isSelected ? 'scale-110' : 'group-hover:scale-105'}`}>
+                              <i className={`${agent.icon} text-xl`}></i>
+                           </div>
+                           <div className="flex-grow">
+                              <h4 className="text-lg font-black uppercase italic tracking-tighter text-white">{agent.name}</h4>
+                              <div className="flex items-center gap-2 mt-1">
+                                 <span className="text-[8px] font-black uppercase tracking-[0.2em] text-green-600">Framework_v4.1</span>
+                                 {agent.id === 'clanker' && <i className="fa-solid fa-globe text-[8px] text-zinc-600" title="Search Enabled"></i>}
+                                 {agent.id === 'smolagents' && <i className="fa-solid fa-terminal text-[8px] text-zinc-600" title="Code Execution Enabled"></i>}
+                              </div>
+                           </div>
+                           {/* Tick Indicator */}
+                           <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all ${isSelected ? 'bg-green-500 border-green-500' : 'border-white/10'}`}>
+                              {isSelected && <i className="fa-solid fa-check text-[10px] text-black"></i>}
+                           </div>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-zinc-400 font-inter mb-6">{agent.personality}</p>
+                        <div className="mt-auto flex items-center justify-between border-t border-white/5 pt-6">
+                           <div className="flex gap-2">
+                              {agent.id === 'clanker' && <span className="px-2 py-0.5 rounded-full bg-white/5 text-[7px] font-black uppercase text-zinc-600 tracking-widest">Base_Network</span>}
+                              {agent.id === 'smolagents' && <span className="px-2 py-0.5 rounded-full bg-white/5 text-[7px] font-black uppercase text-zinc-600 tracking-widest">Python_Core</span>}
+                              {agent.id === 'reaper' && <span className="px-2 py-0.5 rounded-full bg-white/5 text-[7px] font-black uppercase text-zinc-600 tracking-widest">Ethical_Pen_Test</span>}
+                           </div>
+                        </div>
+                        <div className={`absolute top-0 right-0 w-32 h-32 bg-[radial-gradient(circle,rgba(34,197,94,0.03)_0%,transparent_70%)] transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}></div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : activeTab === 'fusion' ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-10">
                 {filteredCores.map(ai => {
                   const isSelected = selected.includes(ai);
@@ -158,7 +281,6 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
                           </div>
                         )}
                       </div>
-                      {/* Interactive Glow */}
                       <div className={`absolute inset-0 bg-gradient-to-tr from-red-600/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity ${isSelected ? 'opacity-30' : ''}`}></div>
                     </button>
                   );
@@ -215,7 +337,6 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
                     Fusion Chamber
                   </h4>
                   
-                  {/* Visual Synthesis Chamber */}
                   <div className="relative w-full aspect-square flex items-center justify-center mb-8">
                     <div className="absolute inset-0 border border-dashed border-red-900/20 rounded-full animate-spin-slow"></div>
                     <div className="absolute inset-4 border border-dashed border-red-500/10 rounded-full animate-spin-reverse"></div>
@@ -224,7 +345,6 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
                        <i className={`fa-solid ${selected.length === 0 ? 'fa-atom' : selected.length === 1 ? 'fa-microchip' : selected.length === 2 ? 'fa-bolt' : 'fa-explosion'} text-3xl text-red-500 ${selected.length > 0 ? 'animate-pulse' : ''}`}></i>
                     </div>
 
-                    {/* Orbital Nodes */}
                     {selected.map((s, i) => {
                       const angle = (i * (360 / selected.length) * Math.PI) / 180;
                       const radius = 80;
@@ -281,12 +401,12 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
                 <div className="flex items-center gap-3">
                   <div className="w-48 h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-white/5">
                     <div 
-                      className={`h-full transition-all duration-1000 ${selected.length === 3 ? 'bg-red-500' : 'bg-red-600/40'}`}
-                      style={{ width: `${(selected.length / 3) * 100}%` }}
+                      className={`h-full transition-all duration-1000 ${(activeTab === 'fusion' ? selected.length / 3 : activeTab === 'underground' ? selectedUnderground.length / UNDERGROUND_AGENTS.length : 1) * 100}%`}
+                      style={{ width: `${(activeTab === 'fusion' ? selected.length / 3 : activeTab === 'underground' ? selectedUnderground.length / UNDERGROUND_AGENTS.length : 1) * 100}%` }}
                     ></div>
                   </div>
-                  <span className={`text-[11px] font-black tracking-widest ${selected.length > 0 ? 'text-red-500' : 'text-zinc-800'}`}>
-                    {(selected.length / 3 * 100).toFixed(0)}%
+                  <span className={`text-[11px] font-black tracking-widest ${(activeTab === 'fusion' ? selected.length : activeTab === 'underground' ? selectedUnderground.length : 1) > 0 ? (activeTab === 'underground' ? 'text-green-500' : 'text-red-500') : 'text-zinc-800'}`}>
+                    {((activeTab === 'fusion' ? selected.length / 3 : activeTab === 'underground' ? selectedUnderground.length / UNDERGROUND_AGENTS.length : 1) * 100).toFixed(0)}%
                   </span>
                 </div>
               </div>
@@ -295,7 +415,7 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
                 <div className="flex items-center gap-2 text-red-500 animate-bounce px-4 py-2 bg-red-500/10 rounded-xl border border-red-500/20">
                   <i className="fa-solid fa-triangle-exclamation text-xs"></i>
                   <span className="text-[10px] font-black uppercase tracking-widest">
-                    {activeTab === 'fusion' ? 'Select at least 1 core' : 'Directive required'}
+                    {activeTab === 'fusion' ? 'Select at least 1 core' : activeTab === 'underground' ? 'Select at least 1 framework' : 'Directive required'}
                   </span>
                 </div>
               )}
@@ -306,8 +426,8 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
               onClick={handleSynthesize}
               className={`
                 w-full md:w-auto px-16 py-5 rounded-[2rem] font-black uppercase text-[13px] tracking-[0.3em] transition-all flex items-center justify-center gap-4 relative overflow-hidden group
-                ${((activeTab === 'fusion' && selected.length > 0) || (activeTab === 'custom' && customPrompt.trim())) 
-                  ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_15px_40px_-10px_rgba(220,38,38,0.5)] active:scale-95' 
+                ${((activeTab === 'fusion' && selected.length > 0) || (activeTab === 'custom' && customPrompt.trim()) || (activeTab === 'underground' && selectedUnderground.length > 0)) 
+                  ? `${activeTab === 'underground' ? 'bg-green-600 hover:bg-green-500 shadow-[0_15px_40px_-10px_rgba(34,197,94,0.5)]' : 'bg-red-600 hover:bg-red-500 shadow-[0_15px_40px_-10px_rgba(220,38,38,0.5)]'} text-white active:scale-95` 
                   : 'bg-zinc-900 text-zinc-800 border border-white/5 cursor-not-allowed'}
               `}
             >
@@ -318,19 +438,18 @@ const AgentCreator: React.FC<AgentCreatorProps> = ({ onCreated, onClose }) => {
                 </>
               ) : (
                 <>
-                  <i className={`fa-solid ${activeTab === 'fusion' ? 'fa-bolt' : 'fa-terminal'} group-hover:rotate-12 transition-transform text-lg`}></i>
-                  <span>FABRICATE AGENT</span>
+                  <i className={`fa-solid ${activeTab === 'fusion' ? 'fa-bolt' : activeTab === 'underground' ? 'fa-eye-slash' : 'fa-terminal'} group-hover:rotate-12 transition-transform text-lg`}></i>
+                  <span>{activeTab === 'underground' ? 'LINK FRAMEWORKS' : 'FABRICATE AGENT'}</span>
                 </>
               )}
               
-              {!isSynthesizing && ((activeTab === 'fusion' && selected.length > 0) || (activeTab === 'custom' && customPrompt.trim())) && (
+              {!isSynthesizing && ((activeTab === 'fusion' && selected.length > 0) || (activeTab === 'custom' && customPrompt.trim()) || (activeTab === 'underground' && selectedUnderground.length > 0)) && (
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
               )}
             </button>
           </div>
         </div>
 
-        {/* Decorative HUD Elements */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[8px] text-zinc-800 font-black uppercase tracking-[0.8em] pointer-events-none opacity-40">
            Neural Fabrication Interface // System Status: Nominal
         </div>

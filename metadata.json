@@ -1,7 +1,8 @@
 {
-  "name": "Copy of Brainstorming Council",
+  "name": "Brainstorming Council",
   "description": "An unrestricted, raw, and uncensored synthetic debate chamber where AI titans converge to provide unfiltered analysis and objective truth.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "geolocation"
   ]
 }

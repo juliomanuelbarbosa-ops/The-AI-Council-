@@ -9,6 +9,7 @@ export interface Agent {
   borderColor: string;
   icon: string;
   personality: string;
+  avatarUrl?: string; // High-res 3D portrait URL
 }
 
 export interface NeuralState {
@@ -30,6 +31,23 @@ export interface FileAttachment {
   url: string;
 }
 
+export interface GroundingMetadata {
+  searchEntryPoint?: { renderedContent?: string };
+  groundingChunks?: Array<{
+    web?: { uri: string; title: string };
+    maps?: { uri: string; title: string; placeId?: string };
+  }>;
+}
+
+export interface TorrentResult {
+  fileName: string;
+  size: string;
+  healthScore: number; // 1-10
+  safetyStatus: 'VERIFIED' | 'SUSPICIOUS' | 'DANGEROUS';
+  magnetLink: string;
+  sourceNode: string;
+}
+
 export interface MeetingMessage {
   id: string;
   agentId: AgentId;
@@ -37,6 +55,9 @@ export interface MeetingMessage {
   timestamp: number;
   blindRating?: number;
   neuralState?: NeuralState;
+  groundingMetadata?: GroundingMetadata;
+  audioUrl?: string; // For TTS
+  torrentResults?: TorrentResult[];
 }
 
 export interface CreatorInsights {
@@ -54,7 +75,9 @@ export interface BrainstormingSession {
   errorMessage?: string;
   attachments?: FileAttachment[];
   visuals?: string[];
+  generatedVideos?: string[]; // Veo videos
   creatorInsights?: CreatorInsights;
+  totalTurns?: number;
 }
 
 export interface DebateTurn {
@@ -62,10 +85,12 @@ export interface DebateTurn {
   thought: string;
   blindRating?: number;
   neuralState: NeuralState;
+  torrentResults?: TorrentResult[];
 }
 
 export interface DebateResponse {
   discussion: DebateTurn[];
   finalConsensus: string;
   creatorInsights: CreatorInsights;
+  groundingMetadata?: GroundingMetadata;
 }

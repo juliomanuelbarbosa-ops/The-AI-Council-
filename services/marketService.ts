@@ -60,16 +60,30 @@ const MOCK_BANKERS: MarketData = {
   ]
 };
 
+const MOCK_POLYMARKET: MarketData = {
+  gainers: [
+    { symbol: 'Will Fed cut rates in March?', price: 0.72, change: 0.05, changePercent: 72 },
+    { symbol: 'Will BTC hit $100k in 2025?', price: 0.48, change: 0.02, changePercent: 48 },
+    { symbol: 'Next UK Prime Minister?', price: 0.85, change: 0.01, changePercent: 85 },
+    { symbol: 'Will GTA 6 be delayed?', price: 0.25, change: 0.10, changePercent: 25 },
+  ],
+  losers: [
+    { symbol: 'Will it rain in London tomorrow?', price: 0.90, change: -0.05, changePercent: 90 },
+    { symbol: 'Will SpaceX land on Mars in 2026?', price: 0.05, change: -0.01, changePercent: 5 },
+  ]
+};
+
 /**
  * To use real Alpaca API keys:
  * 1. Ensure process.env.ALPACA_API_KEY and process.env.ALPACA_SECRET_KEY are set.
  * 2. Update the fetch calls to the Alpaca Market Data v2 endpoints.
  */
-export const fetchMarketIntelligence = async (type: 'stocks' | 'crypto' | 'bankers'): Promise<MarketData> => {
+export const fetchMarketIntelligence = async (type: 'stocks' | 'crypto' | 'bankers' | 'polymarket'): Promise<MarketData> => {
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 800));
   
   if (type === 'stocks') return MOCK_STOCKS;
   if (type === 'crypto') return MOCK_CRYPTO;
-  return MOCK_BANKERS;
+  if (type === 'bankers') return MOCK_BANKERS;
+  return MOCK_POLYMARKET;
 };

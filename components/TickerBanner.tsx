@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { fetchMarketIntelligence, MarketData, MarketQuote } from '../services/marketService';
 
 const TickerBanner: React.FC = () => {
-  const [assetType, setAssetType] = useState<'stocks' | 'crypto' | 'bankers'>('stocks');
+  const [assetType, setAssetType] = useState<'stocks' | 'crypto' | 'bankers' | 'polymarket'>('stocks');
   const [data, setData] = useState<MarketData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,23 +33,31 @@ const TickerBanner: React.FC = () => {
   }, [data]);
 
   const TickerItem: React.FC<{ quote: MarketQuote }> = ({ quote }) => {
-    if (assetType === 'bankers') {
+    if (assetType === 'bankers' || assetType === 'polymarket') {
+      const isPoly = assetType === 'polymarket';
       return (
-        <div className="inline-flex items-center gap-4 px-8 border-r border-white/5 py-3 bg-gradient-to-r from-transparent via-yellow-900/5 to-transparent">
-          <span className="text-[11px] font-black tracking-widest text-zinc-400">{quote.symbol}</span>
+        <div className={`inline-flex items-center gap-4 px-8 border-r border-white/5 py-3 bg-gradient-to-r from-transparent ${isPoly ? 'via-blue-900/10' : 'via-yellow-900/5'} to-transparent`}>
+          <span className={`text-[11px] font-black tracking-widest ${isPoly ? 'text-blue-400' : 'text-zinc-400'}`}>{quote.symbol}</span>
           <div className="flex items-center gap-2">
-            <span className="text-[8px] font-black text-zinc-600 uppercase">Odds</span>
-            <span className="text-[11px] font-mono font-bold text-yellow-500">{quote.price.toFixed(2)}</span>
+            <span className="text-[8px] font-black text-zinc-600 uppercase">{isPoly ? 'Prob' : 'Odds'}</span>
+            <span className={`text-[11px] font-mono font-bold ${isPoly ? 'text-blue-300' : 'text-yellow-500'}`}>
+              {isPoly ? `${(quote.price * 100).toFixed(0)}%` : quote.price.toFixed(2)}
+            </span>
           </div>
           <div className="flex items-center gap-2">
-             <span className="text-[8px] font-black text-zinc-600 uppercase">Confidence</span>
-             <span className={`text-[10px] font-black ${quote.changePercent >= 80 ? 'text-emerald-500' : 'text-zinc-400'}`}>
+             <span className="text-[8px] font-black text-zinc-600 uppercase">{isPoly ? 'Volume' : 'Confidence'}</span>
+             <span className={`text-[10px] font-black ${quote.changePercent >= 80 ? (isPoly ? 'text-blue-500' : 'text-emerald-500') : 'text-zinc-400'}`}>
                 {quote.changePercent}%
              </span>
           </div>
           {quote.isBanker && (
             <span className="px-2 py-0.5 rounded-full bg-yellow-600/20 border border-yellow-500/30 text-[7px] font-black text-yellow-500 uppercase tracking-widest">
               Banker
+            </span>
+          )}
+          {isPoly && (
+             <span className="px-2 py-0.5 rounded-full bg-blue-600/20 border border-blue-500/30 text-[7px] font-black text-blue-500 uppercase tracking-widest">
+              Poly
             </span>
           )}
         </div>
@@ -75,9 +83,9 @@ const TickerBanner: React.FC = () => {
       {/* Label & Toggle */}
       <div className="flex items-center gap-4 px-6 py-3 border-r border-white/5 bg-black/20 shrink-0 z-10 w-full md:w-auto justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-2 h-2 rounded-full ${assetType === 'bankers' ? 'bg-yellow-500' : 'bg-emerald-500'} animate-pulse`}></div>
+          <div className={`w-2 h-2 rounded-full ${assetType === 'bankers' ? 'bg-yellow-500' : assetType === 'polymarket' ? 'bg-blue-500' : 'bg-emerald-500'} animate-pulse`}></div>
           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500">
-            {assetType === 'bankers' ? 'STRIKER_BANKERS' : 'Global_Pulse'}
+            {assetType === 'bankers' ? 'STRIKER_BANKERS' : assetType === 'polymarket' ? 'POLYMARKET_HOTS' : 'Global_Pulse'}
           </span>
         </div>
         <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5">
@@ -98,6 +106,12 @@ const TickerBanner: React.FC = () => {
             className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-all ${assetType === 'bankers' ? 'bg-yellow-600 text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
           >
             Bankers
+          </button>
+          <button 
+            onClick={() => setAssetType('polymarket')}
+            className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-all ${assetType === 'polymarket' ? 'bg-blue-600 text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
+          >
+            Poly
           </button>
         </div>
       </div>

@@ -4,6 +4,7 @@ export interface MarketQuote {
   price: number;
   change: number;
   changePercent: number;
+  isBanker?: boolean;
 }
 
 export interface MarketData {
@@ -46,16 +47,29 @@ const MOCK_CRYPTO: MarketData = {
   ]
 };
 
+const MOCK_BANKERS: MarketData = {
+  gainers: [
+    { symbol: 'REAL MADRID (W)', price: 1.45, change: 0.20, changePercent: 88, isBanker: true },
+    { symbol: 'LIVERPOOL (W)', price: 1.82, change: 0.15, changePercent: 74, isBanker: true },
+    { symbol: 'MAN CITY (W)', price: 1.30, change: 0.05, changePercent: 92, isBanker: true },
+    { symbol: 'BTTS: ARS vs CHE', price: 1.65, change: 0.10, changePercent: 81, isBanker: true },
+  ],
+  losers: [
+    { symbol: 'UFC: PEREIRA (KO)', price: 1.55, change: -0.05, changePercent: 65, isBanker: false },
+    { symbol: 'NFL: CHIEFS (W)', price: 1.42, change: -0.10, changePercent: 58, isBanker: false },
+  ]
+};
+
 /**
  * To use real Alpaca API keys:
  * 1. Ensure process.env.ALPACA_API_KEY and process.env.ALPACA_SECRET_KEY are set.
  * 2. Update the fetch calls to the Alpaca Market Data v2 endpoints.
  */
-export const fetchMarketIntelligence = async (type: 'stocks' | 'crypto'): Promise<MarketData> => {
+export const fetchMarketIntelligence = async (type: 'stocks' | 'crypto' | 'bankers'): Promise<MarketData> => {
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 800));
   
-  // Logic to return mock or real data
-  // For production, you'd fetch from: https://data.alpaca.markets/v2/stocks/snapshots
-  return type === 'stocks' ? MOCK_STOCKS : MOCK_CRYPTO;
+  if (type === 'stocks') return MOCK_STOCKS;
+  if (type === 'crypto') return MOCK_CRYPTO;
+  return MOCK_BANKERS;
 };

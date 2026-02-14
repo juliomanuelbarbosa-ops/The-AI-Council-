@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { fetchMarketIntelligence, MarketData, MarketQuote } from '../services/marketService';
 
 const TickerBanner: React.FC = () => {
-  const [assetType, setAssetType] = useState<'stocks' | 'crypto'>('stocks');
+  const [assetType, setAssetType] = useState<'stocks' | 'crypto' | 'bankers'>('stocks');
   const [data, setData] = useState<MarketData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,27 +32,53 @@ const TickerBanner: React.FC = () => {
     return [...data.gainers, ...data.losers];
   }, [data]);
 
-  // FIX: Explicitly typed as React.FC to allow JSX-standard props like 'key' during list rendering
-  const TickerItem: React.FC<{ quote: MarketQuote }> = ({ quote }) => (
-    <div className="inline-flex items-center gap-4 px-8 border-r border-white/5 py-3">
-      <span className="text-[11px] font-black tracking-widest text-zinc-400">{quote.symbol}</span>
-      <span className="text-[11px] font-mono font-bold text-white">
-        ${quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: quote.price < 1 ? 6 : 2 })}
-      </span>
-      <span className={`text-[10px] font-black flex items-center gap-1 ${quote.change >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-        <i className={`fa-solid fa-caret-${quote.change >= 0 ? 'up' : 'down'}`}></i>
-        {Math.abs(quote.changePercent).toFixed(2)}%
-      </span>
-    </div>
-  );
+  const TickerItem: React.FC<{ quote: MarketQuote }> = ({ quote }) => {
+    if (assetType === 'bankers') {
+      return (
+        <div className="inline-flex items-center gap-4 px-8 border-r border-white/5 py-3 bg-gradient-to-r from-transparent via-yellow-900/5 to-transparent">
+          <span className="text-[11px] font-black tracking-widest text-zinc-400">{quote.symbol}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[8px] font-black text-zinc-600 uppercase">Odds</span>
+            <span className="text-[11px] font-mono font-bold text-yellow-500">{quote.price.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+             <span className="text-[8px] font-black text-zinc-600 uppercase">Confidence</span>
+             <span className={`text-[10px] font-black ${quote.changePercent >= 80 ? 'text-emerald-500' : 'text-zinc-400'}`}>
+                {quote.changePercent}%
+             </span>
+          </div>
+          {quote.isBanker && (
+            <span className="px-2 py-0.5 rounded-full bg-yellow-600/20 border border-yellow-500/30 text-[7px] font-black text-yellow-500 uppercase tracking-widest">
+              Banker
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="inline-flex items-center gap-4 px-8 border-r border-white/5 py-3">
+        <span className="text-[11px] font-black tracking-widest text-zinc-400">{quote.symbol}</span>
+        <span className="text-[11px] font-mono font-bold text-white">
+          ${quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: quote.price < 1 ? 6 : 2 })}
+        </span>
+        <span className={`text-[10px] font-black flex items-center gap-1 ${quote.change >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+          <i className={`fa-solid fa-caret-${quote.change >= 0 ? 'up' : 'down'}`}></i>
+          {Math.abs(quote.changePercent).toFixed(2)}%
+        </span>
+      </div>
+    );
+  };
 
   return (
     <div className="w-full bg-black/40 backdrop-blur-md border-b border-white/5 flex flex-col md:flex-row items-center overflow-hidden">
       {/* Label & Toggle */}
       <div className="flex items-center gap-4 px-6 py-3 border-r border-white/5 bg-black/20 shrink-0 z-10 w-full md:w-auto justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500">Global_Pulse</span>
+          <div className={`w-2 h-2 rounded-full ${assetType === 'bankers' ? 'bg-yellow-500' : 'bg-emerald-500'} animate-pulse`}></div>
+          <span className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500">
+            {assetType === 'bankers' ? 'STRIKER_BANKERS' : 'Global_Pulse'}
+          </span>
         </div>
         <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5">
           <button 
@@ -67,6 +93,12 @@ const TickerBanner: React.FC = () => {
           >
             Crypto
           </button>
+          <button 
+            onClick={() => setAssetType('bankers')}
+            className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-all ${assetType === 'bankers' ? 'bg-yellow-600 text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
+          >
+            Bankers
+          </button>
         </div>
       </div>
 
@@ -75,7 +107,7 @@ const TickerBanner: React.FC = () => {
         {isLoading && !data ? (
           <div className="px-6 flex items-center gap-3">
             <i className="fa-solid fa-circle-notch animate-spin text-zinc-800 text-xs"></i>
-            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-800">Syncing Market Nodes...</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-800">Syncing Intelligence Nodes...</span>
           </div>
         ) : error ? (
           <div className="px-6 text-rose-500 text-[9px] font-black uppercase tracking-widest">

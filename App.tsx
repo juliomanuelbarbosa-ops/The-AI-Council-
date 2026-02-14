@@ -6,6 +6,7 @@ import MeetingRoom from './components/MeetingRoom';
 import ErrorModal from './components/ErrorModal';
 import AgentCreator from './components/AgentCreator';
 import TickerBanner from './components/TickerBanner';
+import DefconBanner from './components/DefconBanner';
 import OnionBrowser from './components/OnionBrowser';
 import { getBrainstormingDebate, generateCouncilVisual, generateAgentAvatar, consultMaps } from './services/geminiService';
 import { DEFAULT_AGENTS } from './constants';
@@ -111,9 +112,8 @@ const App: React.FC = () => {
     return defaults;
   });
 
-  const [participatingAgentIds, setParticipatingAgentIds] = useState<Set<AgentId>>(
-    new Set(Object.values(DEFAULT_AGENTS).map(a => a.id))
-  );
+  // Default to empty selection to force the user to "choose" as requested
+  const [participatingAgentIds, setParticipatingAgentIds] = useState<Set<AgentId>>(new Set());
   
   const [showCreator, setShowCreator] = useState(false);
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
@@ -178,7 +178,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const defaults = Object.values(DEFAULT_AGENTS);
     const defaultIds = new Set(defaults.map(d => d.id));
-    const customAgentsOnly = council.filter(a => !defaultIds.has(a.id) || a.avatarUrl);
+    const customAgentsOnly = council.filter(a => !defaultIds.has(a.id));
     localStorage.setItem(CUSTOM_AGENTS_STORAGE_KEY, JSON.stringify(customAgentsOnly));
   }, [council]);
 
@@ -211,7 +211,7 @@ const App: React.FC = () => {
   const startBrainstorming = async () => {
     if (!topic.trim() && attachments.length === 0) return;
     if (participatingAgents.length < 2) {
-      alert("Quorum required: Select at least 2 operatives.");
+      alert("Quorum required: Select at least 2 operatives to initiate the council.");
       return;
     }
 
@@ -236,7 +236,7 @@ const App: React.FC = () => {
         setSession(prev => ({ ...prev, topic: `${prev.topic}\n[GEO_DATA: ${mapData}]` }));
       }
 
-      const debateResult = await getBrainstormingDebate(topic, participatingAgents, []);
+      const debateResult = await getBrainstormingDebate(topic, participatingAgents, [], attachments);
       
       setSession(prev => ({ 
         ...prev, 
@@ -363,6 +363,24 @@ const App: React.FC = () => {
     });
   };
 
+  const removeAgentFromCouncil = (id: AgentId) => {
+    if (DEFAULT_AGENTS[id]) return; // Can't remove defaults
+    setCouncil(prev => prev.filter(a => a.id !== id));
+    setParticipatingAgentIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const selectAllAgents = () => {
+    setParticipatingAgentIds(new Set(council.map(a => a.id)));
+  };
+
+  const clearSelection = () => {
+    setParticipatingAgentIds(new Set());
+  };
+
   const handleCreatedAgent = async (agent: Agent) => {
     setCouncil([...council, agent]);
     setParticipatingAgentIds(prev => new Set(prev).add(agent.id));
@@ -457,6 +475,9 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#030712] text-white flex flex-col">
+      {/* Alert Banner */}
+      <DefconBanner />
+      
       {/* High-Fidelity Market Ticker Banner */}
       <TickerBanner />
 
@@ -507,7 +528,7 @@ const App: React.FC = () => {
         <main className="flex-grow flex flex-col h-[calc(100vh-260px)] overflow-hidden glass-panel rounded-[3rem] shadow-2xl relative">
           {session.status === 'idle' ? (
             <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
-              <div className="w-full md:w-1/2 p-12 overflow-y-auto custom-scrollbar flex flex-col border-r border-white/5">
+              <div className="w-full md:w-1/2 p-12 overflow-y-auto custom-scrollbar flex flex-col border-r border-white/5 bg-black/40">
                  <div className="mb-12">
                     <h2 className="text-xs font-black uppercase tracking-[0.4em] text-red-500 mb-6">Subject Directives</h2>
                     <div className="relative group">
@@ -539,35 +560,84 @@ const App: React.FC = () => {
                     )}
                  </div>
                  <div className="flex-grow">
-                    <h2 className="text-xs font-black uppercase tracking-[0.4em] text-zinc-600 mb-8">Chamber Quorum</h2>
-                    <div className="grid grid-cols-2 gap-4">
-                       {council.map(agent => (
-                         <button
-                           key={agent.id}
-                           onClick={() => toggleParticipation(agent.id)}
-                           className={`p-6 rounded-[2rem] border transition-all relative overflow-hidden group text-left flex items-center gap-4 ${participatingAgentIds.has(agent.id) ? 'bg-red-600/10 border-red-500/50 shadow-lg shadow-red-900/10' : 'bg-black/20 border-white/5 opacity-50'}`}
-                         >
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${participatingAgentIds.has(agent.id) ? 'bg-red-600 border-white/20' : 'bg-zinc-900 border-white/5'}`}>
-                               <i className={`${agent.icon} text-lg`}></i>
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                               <span className="text-[11px] font-black uppercase tracking-widest truncate">{agent.name}</span>
-                               <span className="text-[8px] uppercase tracking-tighter text-zinc-500 font-mono truncate">{agent.fullName}</span>
-                            </div>
-                         </button>
-                       ))}
+                    <div className="flex items-center justify-between mb-8">
+                       <h2 className="text-xs font-black uppercase tracking-[0.4em] text-zinc-600">Chamber Quorum</h2>
+                       <div className="flex gap-4">
+                          <button onClick={selectAllAgents} className="text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-500 transition-colors">Select All</button>
+                          <button onClick={clearSelection} className="text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-500 transition-colors">Clear</button>
+                       </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       {council.map(agent => {
+                         const isSelected = participatingAgentIds.has(agent.id);
+                         const isDefault = !!DEFAULT_AGENTS[agent.id];
+                         return (
+                           <div key={agent.id} className="relative group">
+                             <button
+                               onClick={() => toggleParticipation(agent.id)}
+                               className={`w-full p-5 rounded-[2rem] border transition-all text-left flex items-start gap-4 ${isSelected ? 'bg-red-600/10 border-red-500/60 shadow-lg shadow-red-900/10' : 'bg-black/40 border-white/5 opacity-60 hover:opacity-100 hover:border-white/20'}`}
+                             >
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all ${isSelected ? 'bg-red-600 border-white/20' : 'bg-zinc-900 border-white/5'}`}>
+                                   <i className={`${agent.icon} text-lg ${isSelected ? 'text-white' : 'text-zinc-600'}`}></i>
+                                </div>
+                                <div className="flex flex-col min-w-0 pr-6">
+                                   <span className={`text-[11px] font-black uppercase tracking-widest truncate ${isSelected ? 'text-white' : 'text-zinc-400'}`}>{agent.name}</span>
+                                   <span className="text-[8px] uppercase tracking-tighter text-zinc-600 font-mono truncate mb-2">{agent.fullName}</span>
+                                   <p className={`text-[9px] leading-tight line-clamp-2 transition-colors ${isSelected ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                                     {agent.personality}
+                                   </p>
+                                </div>
+                             </button>
+                             {!isDefault && (
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); removeAgentFromCouncil(agent.id); }}
+                                 className="absolute top-4 right-4 text-zinc-800 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                               >
+                                 <i className="fa-solid fa-trash-can text-[10px]"></i>
+                               </button>
+                             )}
+                             {isSelected && (
+                               <div className="absolute top-4 right-4 text-red-500 animate-pulse">
+                                  <i className="fa-solid fa-circle-check text-[10px]"></i>
+                               </div>
+                             )}
+                           </div>
+                         );
+                       })}
                     </div>
                  </div>
-                 <button onClick={startBrainstorming} disabled={!topic.trim() && attachments.length === 0} className="mt-12 w-full py-8 rounded-[3rem] bg-red-600 hover:bg-red-500 text-white font-black text-lg tracking-[0.4em] uppercase transition-all shadow-xl active:scale-[0.98] disabled:opacity-20">
-                   Initiate Council
-                 </button>
+                 <div className="mt-12 sticky bottom-0 pt-4 bg-gradient-to-t from-black/80 to-transparent">
+                    <button 
+                      onClick={startBrainstorming} 
+                      disabled={(!topic.trim() && attachments.length === 0) || participatingAgentIds.size < 2} 
+                      className="w-full py-8 rounded-[3rem] bg-red-600 hover:bg-red-500 text-white font-black text-lg tracking-[0.4em] uppercase transition-all shadow-xl active:scale-[0.98] disabled:opacity-10 disabled:grayscale"
+                    >
+                      {participatingAgentIds.size < 2 ? 'Choose At Least 2 Operatives' : 'Initiate Council'}
+                    </button>
+                 </div>
               </div>
-              <div className="hidden md:flex md:w-1/2 p-20 flex-col items-center justify-center text-center bg-black/40">
+              <div className="hidden md:flex md:w-1/2 p-20 flex-col items-center justify-center text-center bg-black/60 relative">
+                 <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(239,68,68,0.05)_0%,transparent_70%)] pointer-events-none"></div>
                  <div className="w-32 h-32 rounded-full border-2 border-dashed border-red-900/20 flex items-center justify-center mb-10 animate-spin-slow">
                     <i className="fa-solid fa-atom text-5xl text-red-500/20"></i>
                  </div>
                  <h3 className="text-3xl font-heading font-black italic tracking-tight uppercase mb-4">Neural Architecture</h3>
-                 <p className="max-w-xs text-zinc-500 text-sm leading-relaxed tracking-wide">Synthetic agents operate without bias limiters. Logic streams are synthesized in real-time to uncover objective truths buried under social narratives.</p>
+                 <p className="max-w-xs text-zinc-500 text-sm leading-relaxed tracking-wide mb-8">Synthetic agents operate without bias limiters. Logic streams are synthesized in real-time to uncover objective truths buried under social narratives.</p>
+                 
+                 <div className="flex flex-col items-center gap-4 bg-white/[0.02] border border-white/5 p-8 rounded-[3rem] w-full max-w-sm">
+                    <div className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-700 mb-2">Quorum Status</div>
+                    <div className="flex items-center gap-6">
+                       <div className="flex flex-col items-center">
+                          <span className="text-3xl font-black italic">{participatingAgentIds.size}</span>
+                          <span className="text-[8px] font-black uppercase text-zinc-600">Selected</span>
+                       </div>
+                       <div className="w-px h-10 bg-white/10"></div>
+                       <div className="flex flex-col items-center">
+                          <span className="text-3xl font-black italic text-zinc-800">{council.length}</span>
+                          <span className="text-[8px] font-black uppercase text-zinc-600">Available</span>
+                       </div>
+                    </div>
+                 </div>
               </div>
             </div>
           ) : (

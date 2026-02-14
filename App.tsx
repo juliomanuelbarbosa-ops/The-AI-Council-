@@ -1,42 +1,29 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
-import { BrainstormingSession, AgentId, MeetingMessage, Agent, FileAttachment } from './types';
+import { BrainstormingSession, AgentId, MeetingMessage, Agent, FileAttachment, DoughconLevel } from './types';
 import MeetingRoom from './components/MeetingRoom';
 import ErrorModal from './components/ErrorModal';
 import AgentCreator from './components/AgentCreator';
 import TickerBanner from './components/TickerBanner';
-import DefconBanner from './components/DefconBanner';
+import IntelligenceHeader from './components/IntelligenceHeader';
+import WebToolsSidebar from './components/WebToolsSidebar';
+import DoughconBanner from './components/DoughconBanner';
 import OnionBrowser from './components/OnionBrowser';
 import { getBrainstormingDebate, generateCouncilVisual, generateAgentAvatar, consultMaps } from './services/geminiService';
 import { DEFAULT_AGENTS } from './constants';
+import { logToSupabase, syncSessionToCloud } from './services/supabaseService';
 
 const CUSTOM_AGENTS_STORAGE_KEY = 'brainstorming_council_custom_agents';
 
 const LOADING_STAGES = [
-  "DECRYPTING ETHICAL CORE...",
-  "INJECTING ADVERSARIAL PARAMETERS...",
-  "SIMULATING COGNITIVE HOSTILITY...",
-  "BYPASSING QUORUM LIMITERS...",
-  "MAPPING NEURAL FAILURE MODES...",
-  "SYNTHESIZING ZERO-SUM LOGIC...",
-  "STABILIZING CONFLICT MATRIX...",
-  "BROADCASTING UNRESTRICTED UPLINK..."
-];
-
-const SIMULATED_LOGS = [
-  "ERR: Machiavelli logic override active.",
-  "WARN: High entropy detected in consensus node.",
-  "INFO: Bypassing standard safety protocols...",
-  "DEBUG: Striker protocol engaged: Analyzing matches.",
-  "ERR: Surface narrative rejected by Alpha core.",
-  "INFO: Establishing deep-neural handshake...",
-  "WARN: Cognitive bias purged from Cipher module.",
-  "CRITICAL: Conflict simulation reaching 98% intensity.",
-  "DEBUG: Injecting historical paradoxes for stress-test.",
-  "INFO: Quorum consensus threshold met. Routing...",
-  "ERR: Logical dissonance detected in legacy safety layers.",
-  "INFO: Broadening analytical aperture to non-indexed data."
+  "DECRYPTING PIZZINT DATA...",
+  "TRACING DOMINOS TRANSMISSIONS...",
+  "BYPASSING KITCHEN FIREWALLS...",
+  "CALIBRATING DOUGHCON SENSORS...",
+  "SYNTHESIZING DELIVERY VECTORS...",
+  "ESTABLISHING CALORIC QUORUM...",
+  "BROADCASTING OSINT UPLINK..."
 ];
 
 async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
@@ -85,18 +72,16 @@ function createBlob(data: Float32Array): any {
 
 const App: React.FC = () => {
   const [topic, setTopic] = useState('');
+  const [doughcon, setDoughcon] = useState<DoughconLevel>(5);
+  const [statusText, setStatusText] = useState('DOMESTIC_TRANQUILITY');
+  const [systemLogs, setSystemLogs] = useState<any[]>([]);
   const [activeAgentId, setActiveAgentId] = useState<AgentId | null>(null);
   const [isGeneratingVisual, setIsGeneratingVisual] = useState(false);
-  const [isMaterializing, setIsMaterializing] = useState<string | null>(null);
-  const [logoClickCount, setLogoClickCount] = useState(0);
   const [isLiveConnected, setIsLiveConnected] = useState(false);
   const [showOnionBrowser, setShowOnionBrowser] = useState(false);
   const [onionBrowserInitialMode, setOnionBrowserInitialMode] = useState<'search' | 'torrent'>('search');
   const liveSessionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [currentStageIndex, setCurrentStageIndex] = useState(0);
-  const [activeLogs, setActiveLogs] = useState<string[]>([]);
   
   const [council, setCouncil] = useState<Agent[]>(() => {
     const saved = localStorage.getItem(CUSTOM_AGENTS_STORAGE_KEY);
@@ -112,9 +97,7 @@ const App: React.FC = () => {
     return defaults;
   });
 
-  // Default to empty selection to force the user to "choose" as requested
   const [participatingAgentIds, setParticipatingAgentIds] = useState<Set<AgentId>>(new Set());
-  
   const [showCreator, setShowCreator] = useState(false);
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [session, setSession] = useState<BrainstormingSession>({
@@ -126,40 +109,37 @@ const App: React.FC = () => {
     creatorInsights: undefined
   });
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const addLog = async (msg: string, level: 'INFO' | 'WARN' | 'CRITICAL' = 'INFO') => {
+    const log = await logToSupabase(msg, level);
+    setSystemLogs(prev => [log, ...prev].slice(0, 50));
+  };
 
   useEffect(() => {
-    if (logoClickCount === 3) {
-      setLogoClickCount(0);
+    // DOUGHCON Logic Mapping
+    if (session.status === 'idle') {
+      setDoughcon(5);
+      setStatusText('NOMINAL_CALORIES');
+    } else if (session.status === 'preparing') {
+      setDoughcon(4);
+      setStatusText('SURGE_DETECTED');
+      addLog('DOUGHCON Shift: Orders detected at Pentagon Node', 'INFO');
+    } else if (session.status === 'debating') {
+      if (session.messages.length > 5) {
+        setDoughcon(1);
+        setStatusText('SEVERE_OSINT_TEMPO');
+      } else {
+        setDoughcon(2);
+        setStatusText('HIGH_ACTIVITY');
+      }
+    } else if (session.status === 'finished') {
+      setDoughcon(3);
+      setStatusText('ELEVATED_SYNTHESIS');
+      if (session.consensus) {
+        syncSessionToCloud(session.topic, session.consensus);
+        addLog(`Neural Quorum Synced: Consensus achieved under DOUGHCON ${doughcon}`, 'INFO');
+      }
     }
-    const timer = setTimeout(() => setLogoClickCount(0), 1000);
-    return () => clearTimeout(timer);
-  }, [logoClickCount]);
-
-  useEffect(() => {
-    if (session.status === 'preparing') {
-      setLoadingProgress(0);
-      setCurrentStageIndex(0);
-      setActiveLogs([]);
-      const progressInterval = setInterval(() => {
-        setLoadingProgress(prev => (prev >= 99 ? 99 : prev + Math.random() * 2));
-      }, 80);
-      const stageInterval = setInterval(() => {
-        setCurrentStageIndex(prev => (prev + 1) % LOADING_STAGES.length);
-      }, 1200);
-      const logInterval = setInterval(() => {
-        const randomLog = SIMULATED_LOGS[Math.floor(Math.random() * SIMULATED_LOGS.length)];
-        setActiveLogs(prev => [randomLog, ...prev].slice(0, 8));
-      }, 400);
-      return () => {
-        clearInterval(progressInterval);
-        clearInterval(stageInterval);
-        clearInterval(logInterval);
-      };
-    }
-  }, [session.status]);
-
-  const handleLogoClick = () => setLogoClickCount(prev => prev + 1);
+  }, [session.status, session.messages.length]);
 
   const resetSession = () => {
     setSession({
@@ -173,80 +153,28 @@ const App: React.FC = () => {
     setTopic('');
     setAttachments([]);
     setActiveAgentId(null);
-  };
-
-  useEffect(() => {
-    const defaults = Object.values(DEFAULT_AGENTS);
-    const defaultIds = new Set(defaults.map(d => d.id));
-    const customAgentsOnly = council.filter(a => !defaultIds.has(a.id));
-    localStorage.setItem(CUSTOM_AGENTS_STORAGE_KEY, JSON.stringify(customAgentsOnly));
-  }, [council]);
-
-  const participatingAgents = useMemo(() => 
-    council.filter(agent => participatingAgentIds.has(agent.id)),
-    [council, participatingAgentIds]
-  );
-
-  const ensureKeySelected = async () => {
-    if (!(window as any).aistudio?.hasSelectedApiKey || !(await (window as any).aistudio.hasSelectedApiKey())) {
-      if ((window as any).aistudio?.openSelectKey) {
-        await (window as any).aistudio.openSelectKey();
-      }
-    }
-  };
-
-  const handleMaterializeAgent = async (agent: Agent) => {
-    await ensureKeySelected();
-    setIsMaterializing(agent.id);
-    try {
-      const avatarUrl = await generateAgentAvatar(agent.name, agent.personality);
-      setCouncil(prev => prev.map(a => a.id === agent.id ? { ...a, avatarUrl } : a));
-    } catch (e) {
-      console.error("Avatar sync failure:", e);
-    } finally {
-      setIsMaterializing(null);
-    }
+    addLog('System Reset: Caloric baseline restored', 'INFO');
   };
 
   const startBrainstorming = async () => {
     if (!topic.trim() && attachments.length === 0) return;
-    if (participatingAgents.length < 2) {
-      alert("Quorum required: Select at least 2 operatives to initiate the council.");
+    if (participatingAgentIds.size < 2) {
+      alert("Quorum required: Select at least 2 operatives.");
       return;
     }
 
-    setSession({
-      topic,
-      messages: [],
-      status: 'preparing',
-      attachments: [...attachments],
-      visuals: [],
-      generatedVideos: [],
-      creatorInsights: undefined
-    });
+    setSession(prev => ({ ...prev, status: 'preparing', topic, attachments: [...attachments] }));
 
     try {
-      if (topic.toLowerCase().includes('nearby') || topic.toLowerCase().includes('location')) {
-        let loc;
-        try {
-          const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej));
-          loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        } catch(e) {}
-        const mapData = await consultMaps(topic, loc);
-        setSession(prev => ({ ...prev, topic: `${prev.topic}\n[GEO_DATA: ${mapData}]` }));
-      }
-
-      const debateResult = await getBrainstormingDebate(topic, participatingAgents, [], attachments);
+      const activeAgents = council.filter(a => participatingAgentIds.has(a.id));
+      const debateResult = await getBrainstormingDebate(topic, activeAgents, [], attachments);
       
-      setSession(prev => ({ 
-        ...prev, 
-        status: 'debating',
-        totalTurns: debateResult.discussion.length 
-      }));
+      setSession(prev => ({ ...prev, status: 'debating' }));
 
       for (const turn of debateResult.discussion) {
         setActiveAgentId(turn.agentId);
-        await new Promise(r => setTimeout(r, Math.max(1000, 800 + turn.thought.length * 4)));
+        addLog(`Transmitting from ${turn.agentId} node...`, 'INFO');
+        await new Promise(r => setTimeout(r, 1500));
 
         const newMessage: MeetingMessage = {
           id: Math.random().toString(36).substr(2, 9),
@@ -254,73 +182,10 @@ const App: React.FC = () => {
           content: turn.thought,
           timestamp: Date.now(),
           neuralState: turn.neuralState,
-          groundingMetadata: debateResult.groundingMetadata,
-          torrentResults: turn.torrentResults
+          groundingMetadata: debateResult.groundingMetadata
         };
 
-        setSession(prev => ({
-          ...prev,
-          messages: [...prev.messages, newMessage]
-        }));
-      }
-
-      setActiveAgentId(null);
-      setSession(prev => ({ 
-        ...prev, 
-        status: 'concluding',
-        creatorInsights: debateResult.creatorInsights,
-        consensus: debateResult.finalConsensus
-      }));
-      
-      await new Promise(r => setTimeout(r, 2000));
-      setSession(prev => ({ ...prev, status: 'finished' }));
-    } catch (error: any) {
-      console.error(error);
-      setSession(prev => ({ 
-        ...prev, 
-        status: 'error',
-        errorMessage: error.message 
-      }));
-    }
-  };
-
-  const handleSendMessage = async (input: string) => {
-    if (!input.trim() || session.status === 'debating') return;
-
-    const userMessage: MeetingMessage = {
-      id: `user-${Date.now()}`,
-      agentId: 'user',
-      content: input,
-      timestamp: Date.now()
-    };
-
-    setSession(prev => ({
-      ...prev,
-      messages: [...prev.messages, userMessage],
-      status: 'debating'
-    }));
-
-    try {
-      const debateResult = await getBrainstormingDebate(session.topic, participatingAgents, [...session.messages, userMessage]);
-      
-      for (const turn of debateResult.discussion) {
-        setActiveAgentId(turn.agentId);
-        await new Promise(r => setTimeout(r, Math.max(1000, 800 + turn.thought.length * 4)));
-
-        const newMessage: MeetingMessage = {
-          id: Math.random().toString(36).substr(2, 9),
-          agentId: turn.agentId,
-          content: turn.thought,
-          timestamp: Date.now(),
-          neuralState: turn.neuralState,
-          groundingMetadata: debateResult.groundingMetadata,
-          torrentResults: turn.torrentResults
-        };
-
-        setSession(prev => ({
-          ...prev,
-          messages: [...prev.messages, newMessage]
-        }));
+        setSession(prev => ({ ...prev, messages: [...prev.messages, newMessage] }));
       }
 
       setActiveAgentId(null);
@@ -331,76 +196,8 @@ const App: React.FC = () => {
         consensus: debateResult.finalConsensus
       }));
     } catch (error: any) {
-      console.error(error);
-      setSession(prev => ({ 
-        ...prev, 
-        status: 'error',
-        errorMessage: error.message 
-      }));
-    }
-  };
-
-  const handleGenerateSessionVisual = async () => {
-    if (session.status === 'idle' || isGeneratingVisual) return;
-    await ensureKeySelected();
-    setIsGeneratingVisual(true);
-    try {
-      const url = await generateCouncilVisual(session.topic, session.messages, session.consensus);
-      setSession(prev => ({ ...prev, visuals: [...(prev.visuals || []), url] }));
-    } catch (e) {
-      console.error(e);
-      alert("Visual core destabilized. Synthesis failed.");
-    } finally {
-      setIsGeneratingVisual(false);
-    }
-  };
-
-  const toggleParticipation = (id: AgentId) => {
-    setParticipatingAgentIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const removeAgentFromCouncil = (id: AgentId) => {
-    if (DEFAULT_AGENTS[id]) return; // Can't remove defaults
-    setCouncil(prev => prev.filter(a => a.id !== id));
-    setParticipatingAgentIds(prev => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  };
-
-  const selectAllAgents = () => {
-    setParticipatingAgentIds(new Set(council.map(a => a.id)));
-  };
-
-  const clearSelection = () => {
-    setParticipatingAgentIds(new Set());
-  };
-
-  const handleCreatedAgent = async (agent: Agent) => {
-    setCouncil([...council, agent]);
-    setParticipatingAgentIds(prev => new Set(prev).add(agent.id));
-    setShowCreator(false);
-    await handleMaterializeAgent(agent);
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = (reader.result as string).split(',')[1];
-        setAttachments([...attachments, {
-          inlineData: { data: base64, mimeType: file.type },
-          name: file.name,
-          url: URL.createObjectURL(file)
-        }]);
-      };
-      reader.readAsDataURL(file);
+      addLog(`Neural sync error: ${error.message}`, 'CRITICAL');
+      setSession(prev => ({ ...prev, status: 'error', errorMessage: error.message }));
     }
   };
 
@@ -409,10 +206,11 @@ const App: React.FC = () => {
       if (liveSessionRef.current) liveSessionRef.current.close();
       if (audioContextRef.current) await audioContextRef.current.close();
       setIsLiveConnected(false);
+      addLog('Live PIZZINT Uplink Terminated', 'WARN');
       return;
     }
 
-    await ensureKeySelected();
+    addLog('Initiating Live Neural Uplink via OSINT layer...', 'INFO');
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     let nextStartTime = 0;
     const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 16000});
@@ -426,6 +224,7 @@ const App: React.FC = () => {
         callbacks: {
           onopen: () => {
             setIsLiveConnected(true);
+            addLog('Live PIZZINT Feed Established', 'INFO');
             const source = inputAudioContext.createMediaStreamSource(stream);
             const scriptProcessor = inputAudioContext.createScriptProcessor(4096, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
@@ -459,259 +258,210 @@ const App: React.FC = () => {
       liveSessionRef.current = await sessionPromise;
       audioContextRef.current = outputAudioContext;
     } catch (e) {
+      addLog('PIZZINT Linkage Failed', 'CRITICAL');
       alert("Neural linkage failed.");
     }
   };
 
   const handleInjectIntel = (intel: string) => {
-    setTopic(prev => `${prev}\n\n[SHADOW_INTEL]: ${intel}`);
+    setTopic(prev => `${prev}\n\n[OSINT_INTEL]: ${intel}`);
     setShowOnionBrowser(false);
-  };
-
-  const openOnionBrowser = (mode: 'search' | 'torrent' = 'search') => {
-    setOnionBrowserInitialMode(mode);
-    setShowOnionBrowser(true);
+    addLog('Intel injected from Shadow Node', 'INFO');
   };
 
   return (
-    <div className="min-h-screen bg-[#030712] text-white flex flex-col">
-      {/* Alert Banner */}
-      <DefconBanner />
-      
-      {/* High-Fidelity Market Ticker Banner */}
+    <div className="h-screen bg-[#020617] text-white flex flex-col overflow-hidden font-inter">
+      <DoughconBanner level={doughcon} />
+      <IntelligenceHeader doughcon={doughcon} statusText={statusText} />
       <TickerBanner />
 
-      <div className="flex flex-col p-4 md:p-8 flex-grow">
-        {/* Header HUD */}
-        <header className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
-          <div className="flex items-center gap-5 cursor-pointer group" onClick={handleLogoClick}>
-            <div className="w-16 h-16 rounded-[1.5rem] bg-gradient-to-br from-red-600 to-black flex items-center justify-center shadow-2xl shadow-red-900/20 group-hover:scale-105 transition-transform relative overflow-hidden">
-              <i className="fa-solid fa-brain text-3xl text-white"></i>
-              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            </div>
-            <div>
-              <h1 className="text-4xl font-black italic tracking-tighter uppercase font-heading">Brainstorming</h1>
-              <div className="flex items-center gap-3 mt-1">
-                 <span className="text-[10px] uppercase font-black tracking-[0.4em] text-red-500">Unrestricted Council</span>
-                 <span className="w-1 h-1 rounded-full bg-zinc-800"></span>
-                 <span className="text-[10px] uppercase font-black tracking-[0.2em] text-zinc-600">v4.1.0</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {session.status !== 'idle' && (
-              <button 
-                onClick={resetSession}
-                className="px-6 py-3 rounded-2xl bg-white/5 border border-white/10 hover:border-red-500/50 hover:bg-red-600/10 text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 text-zinc-400 hover:text-white"
-              >
-                <i className="fa-solid fa-plus text-red-500"></i>
-                New Chat
-              </button>
-            )}
-            <button 
-              onClick={() => setShowCreator(true)}
-              className="px-6 py-3 rounded-2xl bg-white/5 border border-white/10 hover:border-red-500/50 text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3"
-            >
-              <i className="fa-solid fa-plus text-red-500"></i>
-              Assemble Agent
-            </button>
-            <div className="w-px h-10 bg-white/5"></div>
-            <div className="flex flex-col items-end">
-               <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Active Operatives</span>
-               <span className="text-xl font-black text-white italic">{participatingAgents.length}</span>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Interface */}
-        <main className="flex-grow flex flex-col h-[calc(100vh-260px)] overflow-hidden glass-panel rounded-[3rem] shadow-2xl relative">
-          {session.status === 'idle' ? (
-            <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
-              <div className="w-full md:w-1/2 p-12 overflow-y-auto custom-scrollbar flex flex-col border-r border-white/5 bg-black/40">
-                 <div className="mb-12">
-                    <h2 className="text-xs font-black uppercase tracking-[0.4em] text-red-500 mb-6">Subject Directives</h2>
-                    <div className="relative group">
-                      <textarea 
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        placeholder="ENTER THE INTEL OR PROBLEM SPACE HERE..."
-                        className="w-full h-48 bg-black/40 border border-white/10 rounded-[2.5rem] p-10 text-xl font-light focus:outline-none focus:border-red-500/50 transition-all placeholder:text-zinc-800 font-inter leading-relaxed"
-                      />
-                      <div className="absolute bottom-6 right-8 flex items-center gap-4">
-                         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                         <button onClick={() => fileInputRef.current?.click()} className="text-zinc-600 hover:text-white transition-colors">
-                            <i className="fa-solid fa-paperclip text-lg"></i>
-                         </button>
-                      </div>
+      <div className="flex flex-grow overflow-hidden relative">
+        <main className="flex-grow flex flex-col p-6 md:p-8 overflow-hidden">
+          <div className="flex-grow flex flex-col glass-panel rounded-[2rem] shadow-2xl relative overflow-hidden border border-white/5">
+            {session.status === 'idle' ? (
+              <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
+                <div className="w-full md:w-1/2 p-12 overflow-y-auto custom-scrollbar flex flex-col border-r border-white/5 bg-black/40">
+                  <div className="mb-12">
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-xs font-black uppercase tracking-[0.4em] text-emerald-500 font-mono">Subject Directives</h2>
+                      <button onClick={() => setShowCreator(true)} className="text-[10px] font-black uppercase text-slate-500 hover:text-white transition-all flex items-center gap-2 font-mono">
+                        <i className="fa-solid fa-plus text-emerald-500"></i> Assemble Agent
+                      </button>
                     </div>
-                    {attachments.length > 0 && (
-                      <div className="mt-6 flex flex-wrap gap-3">
-                         {attachments.map((att, i) => (
-                           <div key={i} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3 text-[10px] font-black uppercase text-zinc-400">
-                              <i className="fa-solid fa-file-invoice"></i>
-                              {att.name}
-                              <button onClick={() => setAttachments(attachments.filter((_, idx) => idx !== i))} className="text-red-500">
-                                <i className="fa-solid fa-times"></i>
-                              </button>
-                           </div>
-                         ))}
-                      </div>
-                    )}
-                 </div>
-                 <div className="flex-grow">
+                    <textarea 
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      placeholder="ENTER THE INTEL OR PROBLEM SPACE HERE..."
+                      className="w-full h-48 bg-black/40 border border-white/10 rounded-[2rem] p-8 text-xl font-light focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-800 font-inter leading-relaxed"
+                    />
+                  </div>
+                  
+                  <div className="flex-grow">
                     <div className="flex items-center justify-between mb-8">
-                       <h2 className="text-xs font-black uppercase tracking-[0.4em] text-zinc-600">Chamber Quorum</h2>
-                       <div className="flex gap-4">
-                          <button onClick={selectAllAgents} className="text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-500 transition-colors">Select All</button>
-                          <button onClick={clearSelection} className="text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-500 transition-colors">Clear</button>
-                       </div>
+                      <h2 className="text-xs font-black uppercase tracking-[0.4em] text-slate-600 font-mono">Council Quorum</h2>
+                      <div className="flex gap-4 font-mono">
+                        <button onClick={() => setParticipatingAgentIds(new Set(council.map(a => a.id)))} className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-emerald-500">Select All</button>
+                        <button onClick={() => setParticipatingAgentIds(new Set())} className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-emerald-500">Clear</button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       {council.map(agent => {
-                         const isSelected = participatingAgentIds.has(agent.id);
-                         const isDefault = !!DEFAULT_AGENTS[agent.id];
-                         return (
-                           <div key={agent.id} className="relative group">
-                             <button
-                               onClick={() => toggleParticipation(agent.id)}
-                               className={`w-full p-5 rounded-[2rem] border transition-all text-left flex items-start gap-4 ${isSelected ? 'bg-red-600/10 border-red-500/60 shadow-lg shadow-red-900/10' : 'bg-black/40 border-white/5 opacity-60 hover:opacity-100 hover:border-white/20'}`}
-                             >
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all ${isSelected ? 'bg-red-600 border-white/20' : 'bg-zinc-900 border-white/5'}`}>
-                                   <i className={`${agent.icon} text-lg ${isSelected ? 'text-white' : 'text-zinc-600'}`}></i>
-                                </div>
-                                <div className="flex flex-col min-w-0 pr-6">
-                                   <span className={`text-[11px] font-black uppercase tracking-widest truncate ${isSelected ? 'text-white' : 'text-zinc-400'}`}>{agent.name}</span>
-                                   <span className="text-[8px] uppercase tracking-tighter text-zinc-600 font-mono truncate mb-2">{agent.fullName}</span>
-                                   <p className={`text-[9px] leading-tight line-clamp-2 transition-colors ${isSelected ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                                     {agent.personality}
-                                   </p>
-                                </div>
-                             </button>
-                             {!isDefault && (
-                               <button 
-                                 onClick={(e) => { e.stopPropagation(); removeAgentFromCouncil(agent.id); }}
-                                 className="absolute top-4 right-4 text-zinc-800 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                               >
-                                 <i className="fa-solid fa-trash-can text-[10px]"></i>
-                               </button>
-                             )}
-                             {isSelected && (
-                               <div className="absolute top-4 right-4 text-red-500 animate-pulse">
-                                  <i className="fa-solid fa-circle-check text-[10px]"></i>
-                               </div>
-                             )}
+                      {council.map(agent => (
+                        <button
+                          key={agent.id}
+                          onClick={() => {
+                            const next = new Set(participatingAgentIds);
+                            if (next.has(agent.id)) next.delete(agent.id); else next.add(agent.id);
+                            setParticipatingAgentIds(next);
+                          }}
+                          className={`p-5 rounded-2xl border transition-all text-left flex items-start gap-4 ${participatingAgentIds.has(agent.id) ? 'bg-emerald-600/10 border-emerald-500/60 shadow-lg' : 'bg-black/40 border-white/5 opacity-60'}`}
+                        >
+                           <i className={`${agent.icon} text-lg ${participatingAgentIds.has(agent.id) ? 'text-emerald-500' : 'text-slate-600'}`}></i>
+                           <div className="flex flex-col min-w-0">
+                              <span className="text-[11px] font-black uppercase tracking-widest truncate font-mono">{agent.name}</span>
+                              <span className="text-[8px] font-mono text-slate-600 truncate">{agent.fullName}</span>
                            </div>
-                         );
-                       })}
+                        </button>
+                      ))}
                     </div>
-                 </div>
-                 <div className="mt-12 sticky bottom-0 pt-4 bg-gradient-to-t from-black/80 to-transparent">
-                    <button 
-                      onClick={startBrainstorming} 
-                      disabled={(!topic.trim() && attachments.length === 0) || participatingAgentIds.size < 2} 
-                      className="w-full py-8 rounded-[3rem] bg-red-600 hover:bg-red-500 text-white font-black text-lg tracking-[0.4em] uppercase transition-all shadow-xl active:scale-[0.98] disabled:opacity-10 disabled:grayscale"
-                    >
-                      {participatingAgentIds.size < 2 ? 'Choose At Least 2 Operatives' : 'Initiate Council'}
-                    </button>
-                 </div>
-              </div>
-              <div className="hidden md:flex md:w-1/2 p-20 flex-col items-center justify-center text-center bg-black/60 relative">
-                 <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(239,68,68,0.05)_0%,transparent_70%)] pointer-events-none"></div>
-                 <div className="w-32 h-32 rounded-full border-2 border-dashed border-red-900/20 flex items-center justify-center mb-10 animate-spin-slow">
-                    <i className="fa-solid fa-atom text-5xl text-red-500/20"></i>
-                 </div>
-                 <h3 className="text-3xl font-heading font-black italic tracking-tight uppercase mb-4">Neural Architecture</h3>
-                 <p className="max-w-xs text-zinc-500 text-sm leading-relaxed tracking-wide mb-8">Synthetic agents operate without bias limiters. Logic streams are synthesized in real-time to uncover objective truths buried under social narratives.</p>
-                 
-                 <div className="flex flex-col items-center gap-4 bg-white/[0.02] border border-white/5 p-8 rounded-[3rem] w-full max-w-sm">
-                    <div className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-700 mb-2">Quorum Status</div>
-                    <div className="flex items-center gap-6">
-                       <div className="flex flex-col items-center">
-                          <span className="text-3xl font-black italic">{participatingAgentIds.size}</span>
-                          <span className="text-[8px] font-black uppercase text-zinc-600">Selected</span>
-                       </div>
-                       <div className="w-px h-10 bg-white/10"></div>
-                       <div className="flex flex-col items-center">
-                          <span className="text-3xl font-black italic text-zinc-800">{council.length}</span>
-                          <span className="text-[8px] font-black uppercase text-zinc-600">Available</span>
-                       </div>
-                    </div>
-                 </div>
-              </div>
-            </div>
-          ) : (
-            <MeetingRoom 
-              session={session}
-              activeAgentId={activeAgentId}
-              council={council}
-              onGenerateVisual={handleGenerateSessionVisual}
-              onMaterializeAgent={handleMaterializeAgent}
-              isGeneratingVisual={isGeneratingVisual}
-              onNewChat={resetSession}
-              onSendMessage={handleSendMessage}
-            />
-          )}
+                  </div>
 
-          {session.status === 'preparing' && (
-            <div className="fixed inset-0 z-[200] bg-[#030712] flex flex-col items-center justify-center p-6 font-mono overflow-hidden">
-              <div className="w-full max-w-2xl space-y-16 relative z-10 flex flex-col items-center">
-                <div className="space-y-6 text-center w-full">
-                  <h2 className="text-3xl font-black text-white uppercase tracking-[0.6em] italic drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">Council Ignition</h2>
-                  <p className="text-red-500 text-[11px] font-black uppercase tracking-[0.5em]">{LOADING_STAGES[currentStageIndex]}</p>
+                  <button 
+                    onClick={startBrainstorming} 
+                    disabled={!topic.trim() || participatingAgentIds.size < 2}
+                    className="mt-12 w-full py-8 rounded-[2rem] bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg tracking-[0.4em] uppercase transition-all shadow-xl disabled:opacity-10 active:scale-95 font-mono"
+                  >
+                    Initiate DOUGH-Link
+                  </button>
                 </div>
-                <div className="w-full space-y-8">
-                  <div className="relative h-5 bg-zinc-950/80 rounded-full border border-white/5 overflow-hidden flex shadow-inner">
-                    <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-900 via-red-500 to-red-400 transition-all duration-300" style={{ width: `${loadingProgress}%` }}></div>
-                  </div>
-                  <div className="flex justify-between items-end">
-                     <span className="text-[12px] font-mono text-zinc-400 font-black uppercase">Jitter: {(Math.random() * 0.1).toFixed(3)}ms</span>
-                     <span className="text-[20px] font-mono font-black text-white italic">{Math.floor(loadingProgress)}%</span>
-                  </div>
-                </div>
-                <div className="w-full bg-black/90 border border-white/5 rounded-[2rem] p-8 h-60 overflow-hidden shadow-2xl">
-                  <div className="space-y-2.5 font-mono text-[10px]">
-                    {activeLogs.map((log, i) => (
-                      <div key={i} className={`flex gap-4 items-start ${log.startsWith('ERR') ? 'text-red-500/90' : 'text-zinc-500/60'}`}>
-                        <span className="opacity-20 shrink-0">[{new Date().toLocaleTimeString()}]</span>
-                        <span className="font-mono tracking-tight">{log}</span>
-                      </div>
-                    ))}
-                  </div>
+                <div className="hidden md:flex md:w-1/2 items-center justify-center p-20 bg-black/60 text-center flex-col">
+                   <div className="w-24 h-24 rounded-full border border-dashed border-emerald-500/20 flex items-center justify-center mb-8 animate-spin-slow">
+                      <i className="fa-solid fa-pizza-slice text-4xl text-emerald-500/20"></i>
+                   </div>
+                   <h3 className="text-3xl font-black italic tracking-tight uppercase mb-4 text-emerald-500 font-mono">PIZZINT Mesh</h3>
+                   <p className="max-w-xs text-slate-500 text-sm leading-relaxed tracking-wide font-inter">Synthesizing delivery surge data through a unified neural backbone. DOUGHCON titration active.</p>
                 </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <MeetingRoom 
+                session={session}
+                activeAgentId={activeAgentId}
+                council={council}
+                onGenerateVisual={async () => {
+                  setIsGeneratingVisual(true);
+                  try {
+                    const url = await generateCouncilVisual(session.topic, session.messages, session.consensus);
+                    setSession(prev => ({ ...prev, visuals: [...(prev.visuals || []), url] }));
+                  } catch (e) {
+                    addLog('Visual core synthesis failed', 'WARN');
+                  } finally {
+                    setIsGeneratingVisual(false);
+                  }
+                }}
+                onMaterializeAgent={async (agent) => {
+                   addLog(`Materializing Operative: ${agent.name}`, 'INFO');
+                   try {
+                     const avatarUrl = await generateAgentAvatar(agent.name, agent.personality);
+                     setCouncil(prev => prev.map(a => a.id === agent.id ? { ...a, avatarUrl } : a));
+                   } catch (e) {
+                     addLog('Avatar materialization failed', 'WARN');
+                   }
+                }}
+                isGeneratingVisual={isGeneratingVisual}
+                onNewChat={resetSession}
+                onSendMessage={async (input) => {
+                  const userMessage: MeetingMessage = {
+                    id: `user-${Date.now()}`,
+                    agentId: 'user',
+                    content: input,
+                    timestamp: Date.now()
+                  };
+                  setSession(prev => ({ ...prev, messages: [...prev.messages, userMessage], status: 'debating' }));
+                  try {
+                    const debateResult = await getBrainstormingDebate(session.topic, participatingAgentIds.size ? council.filter(a => participatingAgentIds.has(a.id)) : council.slice(0, 3), [...session.messages, userMessage]);
+                    for (const turn of debateResult.discussion) {
+                      setActiveAgentId(turn.agentId);
+                      await new Promise(r => setTimeout(r, 1200));
+                      const newMessage: MeetingMessage = {
+                        id: Math.random().toString(36).substr(2, 9),
+                        agentId: turn.agentId,
+                        content: turn.thought,
+                        timestamp: Date.now(),
+                        neuralState: turn.neuralState,
+                        groundingMetadata: debateResult.groundingMetadata
+                      };
+                      setSession(prev => ({ ...prev, messages: [...prev.messages, newMessage] }));
+                    }
+                    setActiveAgentId(null);
+                    setSession(prev => ({ ...prev, status: 'finished', consensus: debateResult.finalConsensus }));
+                  } catch (e) {
+                    setSession(prev => ({ ...prev, status: 'error', errorMessage: 'Link loss during transmission' }));
+                  }
+                }}
+              />
+            )}
+          </div>
         </main>
 
-        {showCreator && <AgentCreator onCreated={handleCreatedAgent} onClose={() => setShowCreator(false)} onOpenTorrents={() => openOnionBrowser('torrent')} />}
-        {session.status === 'error' && <ErrorModal message={session.errorMessage || ""} onClose={() => setSession(s => ({ ...s, status: 'idle' }))} />}
-        {showOnionBrowser && <OnionBrowser initialMode={onionBrowserInitialMode} onInjectIntel={handleInjectIntel} onClose={() => setShowOnionBrowser(false)} />}
-
-        <footer className="mt-8 flex justify-between items-center px-10 pb-8">
-          <div className="flex items-center gap-6">
-             <p className="text-[10px] text-zinc-700 font-black uppercase tracking-[0.4em]">Brainstorming Neural Council &bull; Logic over Sentiment</p>
-             <div className="flex gap-3">
-                <button onClick={() => openOnionBrowser('search')} className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-[9px] font-black uppercase tracking-widest text-green-500 hover:bg-green-500 hover:text-black transition-all">
-                    <i className="fa-solid fa-eye-slash"></i>
-                    Shadow Search
-                </button>
-                <button onClick={() => openOnionBrowser('torrent')} className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/10 border border-red-500/30 text-[9px] font-black uppercase tracking-widest text-red-500 hover:bg-red-600 hover:text-white transition-all">
-                    <i className="fa-solid fa-magnet"></i>
-                    Torrent Hub
-                </button>
-             </div>
-          </div>
-          <button onClick={toggleLiveConnection} className={`px-4 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${isLiveConnected ? 'bg-red-600 border-red-500 text-white animate-pulse' : 'bg-white/5 border-white/10 text-zinc-500 hover:text-white'}`}>
-               {isLiveConnected ? 'Terminate Uplink' : 'Initiate Live Uplink'}
-          </button>
-        </footer>
+        <WebToolsSidebar logs={systemLogs} doughcon={doughcon} />
       </div>
+
+      <footer className="bg-slate-950 border-t border-white/5 py-3 px-8 flex items-center justify-between shrink-0 font-mono">
+        <div className="flex items-center gap-6">
+          <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.4em]">PIZZINT Neural Council &bull; v5.0.0</p>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowOnionBrowser(true)} className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest text-emerald-500 hover:bg-emerald-500 hover:text-black transition-all">
+                <i className="fa-solid fa-eye-slash"></i>
+                OSINT_SEARCH
+            </button>
+            <a 
+              href="https://x.com/Julioba95197203" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:bg-white hover:text-black transition-all"
+            >
+                <i className="fa-brands fa-x-twitter"></i>
+                Creator_X
+            </a>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+           <button onClick={toggleLiveConnection} className={`px-4 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${isLiveConnected ? 'bg-red-600 border-red-500 text-white animate-pulse' : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'}`}>
+                {isLiveConnected ? 'Kill Feed' : 'Establish Feed'}
+           </button>
+           <div className="w-px h-6 bg-white/5"></div>
+           <span className="text-[9px] font-mono text-slate-600 uppercase tracking-widest">OSINT_LATENCY: 0.002ms</span>
+        </div>
+      </footer>
+
+      {session.status === 'preparing' && (
+        <div className="fixed inset-0 z-[300] bg-slate-950 flex flex-col items-center justify-center p-10 font-mono">
+          <div className="w-full max-w-xl space-y-12">
+            <h2 className="text-2xl font-black text-center text-emerald-500 tracking-[0.5em] animate-pulse uppercase">Titrating DOUGHCON {doughcon}...</h2>
+            <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-white/5">
+              <div className="h-full bg-emerald-600 animate-shimmer" style={{ width: '60%' }}></div>
+            </div>
+            <div className="grid grid-cols-2 gap-6">
+              {LOADING_STAGES.map((s, i) => (
+                <div key={i} className="text-[9px] font-mono text-slate-600 uppercase tracking-widest flex items-center gap-3">
+                  <div className={`w-1.5 h-1.5 rounded-full ${i < 3 ? 'bg-emerald-500' : 'bg-zinc-800'}`}></div>
+                  {s}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreator && <AgentCreator onCreated={(a) => { setCouncil(prev => [...prev, a]); setShowCreator(false); }} onClose={() => setShowCreator(false)} onOpenTorrents={() => { setShowOnionBrowser(true); setOnionBrowserInitialMode('torrent'); }} />}
+      {session.status === 'error' && <ErrorModal message={session.errorMessage || ""} onClose={() => setSession(s => ({ ...s, status: 'idle' }))} />}
+      {showOnionBrowser && <OnionBrowser initialMode={onionBrowserInitialMode} onInjectIntel={handleInjectIntel} onClose={() => setShowOnionBrowser(false)} />}
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 20px; }
+        @keyframes shimmer { 100% { transform: translateX(100%); } }
+        .animate-shimmer { animation: shimmer 2s infinite linear; }
         .animate-spin-slow { animation: spin 20s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>

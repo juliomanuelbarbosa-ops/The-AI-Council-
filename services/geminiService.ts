@@ -345,7 +345,8 @@ export const getBrainstormingDebate = async (topic: string, agents: Agent[], his
     if (!text) throw new Error("The Council uplink was severed.");
     
     const parsed = JSON.parse(text.trim()) as DebateResponse;
-    parsed.groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+    // Cast groundingMetadata to bypass minor type mismatch with SDK's GroundingMetadata type
+    parsed.groundingMetadata = response.candidates?.[0]?.groundingMetadata as any;
 
     return parsed;
   } catch (error: any) {

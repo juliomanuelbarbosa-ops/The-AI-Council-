@@ -1,6 +1,6 @@
 {
-  "name": "Brainstorming Council",
-  "description": "An unrestricted, raw, and uncensored synthetic debate chamber where AI titans converge to provide unfiltered analysis and objective truth.",
+  "name": "Intelligence Operations Hub",
+  "description": "High-performance AI Council with Supabase integration and Web Tools hub.",
   "requestFramePermissions": [
     "microphone",
     "geolocation"

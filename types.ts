@@ -1,4 +1,6 @@
 
+export type DoughconLevel = 1 | 2 | 3 | 4 | 5;
+
 export type AgentId = string;
 
 export interface Agent {
@@ -34,8 +36,8 @@ export interface FileAttachment {
 export interface GroundingMetadata {
   searchEntryPoint?: { renderedContent?: string };
   groundingChunks?: Array<{
-    web?: { uri: string; title: string };
-    maps?: { uri: string; title: string; placeId?: string };
+    web?: { uri?: string; title?: string };
+    maps?: { uri?: string; title?: string; placeId?: string };
   }>;
 }
 
